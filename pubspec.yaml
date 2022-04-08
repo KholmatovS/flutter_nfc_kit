@@ -25,5 +25,3 @@ flutter:
       android:
         package: im.nfc.flutter_nfc_kit
         pluginClass: FlutterNfcKitPlugin
-      ios:
-        pluginClass: FlutterNfcKitPlugin
