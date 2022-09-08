@@ -439,7 +439,7 @@ class FlutterNfcKitPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
             }
         }
 
-        override fun error(errorCode: String?, errorMessage: String?, errorDetails: Any?) {
+        override fun error(errorCode: String, errorMessage: String?, errorDetails: Any?) {
             handler.post {
                 ignoreIllegalState {
                     methodResult.error(errorCode, errorMessage, errorDetails)
