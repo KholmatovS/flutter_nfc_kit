@@ -1,8 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
+import 'dart:io' show Platform;
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:ndef/ndef.dart' as ndef;
 import 'package:ndef/ndef.dart' show TypeNameFormat; // for generated file
@@ -26,7 +27,8 @@ enum NFCTagType {
   mifare_ultralight,
   mifare_desfire,
   mifare_plus,
-  unknown
+  webusb,
+  unknown,
 }
 
 /// Metadata of the polled NFC tag.
@@ -72,7 +74,7 @@ class NFCTag {
   final String? dsfId;
 
   /// NDEF availability
-  final bool ndefAvailable;
+  final bool? ndefAvailable;
 
   /// NDEF tag type (Android only)
   final String? ndefType;
@@ -85,6 +87,9 @@ class NFCTag {
 
   /// Indicates whether this NDEF tag can be made read-only (only works on Android, always false on iOS)
   final bool? ndefCanMakeReadOnly;
+
+  /// Custom probe data returned by WebUSB device (see [FlutterNfcKitWeb] for detail, only on Web)
+  final String? webUSBCustomProbeData;
 
   NFCTag(
       this.type,
@@ -103,7 +108,8 @@ class NFCTag {
       this.ndefType,
       this.ndefCapacity,
       this.ndefWritable,
-      this.ndefCanMakeReadOnly);
+      this.ndefCanMakeReadOnly,
+      this.webUSBCustomProbeData);
 
   factory NFCTag.fromJson(Map<String, dynamic> json) => _$NFCTagFromJson(json);
   Map<String, dynamic> toJson() => _$NFCTagToJson(this);
@@ -152,6 +158,12 @@ extension NDEFRecordConvert on ndef.NDEFRecord {
 
 /// Main class of NFC Kit
 class FlutterNfcKit {
+  /// Default timeout for [transceive] (in milliseconds)
+  static const int TRANSCEIVE_TIMEOUT = 5 * 1000;
+
+  /// Default timeout for [poll] (in milliseconds)
+  static const int POLL_TIIMEOUT = 20 * 1000;
+
   static const MethodChannel _channel = const MethodChannel('flutter_nfc_kit');
 
   /// get the availablility of NFC reader on this device
@@ -166,7 +178,7 @@ class FlutterNfcKit {
   ///
   /// If tag is successfully polled, a session is started.
   ///
-  /// The [timeout] parameter only works on Android (default to be 20 seconds). On iOS it is ignored and decided by the OS.
+  /// The [timeout] parameter only works on Android & Web (default to be 20 seconds). On iOS it is ignored and decided by the OS.
   ///
   /// On iOS, set [iosAlertMessage] to display a message when the session starts (to guide users to scan a tag),
   /// and set [iosMultipleTagMessage] to display a message when multiple tags are found.
@@ -176,6 +188,9 @@ class FlutterNfcKit {
   ///
   /// The four boolean flags [readIso14443A], [readIso14443B], [readIso18092], [readIso15693] controls the NFC technology that would be tried.
   /// On iOS, setting any of [readIso14443A] and [readIso14443B] will enable `iso14443` in `pollingOption`.
+  ///
+  /// On Web, all parameters are ignored except [timeout] and [probeWebUSBMagic].
+  /// If [probeWebUSBMagic] is set, the library will use the `PROBE` request to check whether the device supports our API (see [FlutterNfcKitWeb] for details).
   ///
   /// Note: Sometimes NDEF check [leads to error](https://github.com/nfcim/flutter_nfc_kit/issues/11), and disabling it might help.
   /// If disabled, you will not be able to use any NDEF-related methods in the current session.
@@ -194,6 +209,7 @@ class FlutterNfcKit {
     bool readIso14443B = true,
     bool readIso18092 = false,
     bool readIso15693 = true,
+    bool probeWebUSBMagic = false,
   }) async {
     // use a bitmask for compact representation
     int technologies = 0x0;
@@ -206,10 +222,11 @@ class FlutterNfcKit {
     if (!androidCheckNDEF) technologies |= 0x80;
     if (!androidPlatformSound) technologies |= 0x100;
     final String data = await _channel.invokeMethod('poll', {
-      'timeout': timeout?.inMilliseconds ?? 20 * 1000,
+      'timeout': timeout?.inMilliseconds ?? POLL_TIIMEOUT,
       'iosAlertMessage': iosAlertMessage,
       'iosMultipleTagMessage': iosMultipleTagMessage,
-      'technologies': technologies
+      'technologies': technologies,
+      'probeWebUSBMagic': probeWebUSBMagic,
     });
     return NFCTag.fromJson(jsonDecode(data));
   }
@@ -222,27 +239,30 @@ class FlutterNfcKit {
   ///
   /// On Android, [timeout] parameter will set transceive execution timeout that is persistent during a active session.
   /// Also, Ndef TagTechnology will be closed if active.
-  /// On iOS, this parameter is ignored and is decided by the OS again.
+  /// On iOS, this parameter is ignored and is decided by the OS.
+  /// On Web, [timeout] is currently not
   /// Timeout is reset to default value when [finish] is called, and could be changed by multiple calls to [transceive].
   static Future<T> transceive<T>(T capdu, {Duration? timeout}) async {
     assert(capdu is String || capdu is Uint8List);
-    return await _channel.invokeMethod(
-        'transceive', {'data': capdu, 'timeout': timeout?.inMilliseconds});
+    return await _channel.invokeMethod('transceive', {
+      'data': capdu,
+      'timeout': timeout?.inMilliseconds ?? TRANSCEIVE_TIMEOUT
+    });
   }
 
-  /// Read NDEF records (in decoded format).
+  /// Read NDEF records (in decoded format, Android & iOS only).
   ///
   /// There must be a valid session when invoking.
   /// [cached] only works on Android, allowing cached read (may obtain stale data).
   /// On Android, this would cause any other open TagTechnology to be closed.
-  /// See [ndef](https://pub.dev/packages/ndef) for usage of [ndef.NDEFRecord]
+  /// See [ndef](https://pub.dev/packages/ndef) for usage of [ndef.NDEFRecord].
   static Future<List<ndef.NDEFRecord>> readNDEFRecords({bool? cached}) async {
     return (await readNDEFRawRecords(cached: cached))
         .map((r) => NDEFRecordConvert.fromRaw(r))
         .toList();
   }
 
-  /// Read NDEF records (in raw data).
+  /// Read NDEF records (in raw data, Android & iOS only).
   ///
   /// There must be a valid session when invoking.
   /// [cached] only works on Android, allowing cached read (may obtain stale data).
@@ -256,7 +276,7 @@ class FlutterNfcKit {
         .toList();
   }
 
-  /// Write NDEF records (in decoded format).
+  /// Write NDEF records (in decoded format, Android & iOS only).
   ///
   /// There must be a valid session when invoking.
   /// [cached] only works on Android, allowing cached read (may obtain stale data).
@@ -266,7 +286,7 @@ class FlutterNfcKit {
     return await writeNDEFRawRecords(message.map((r) => r.toRaw()).toList());
   }
 
-  /// Write NDEF records (in raw data).
+  /// Write NDEF records (in raw data, Android & iOS only).
   ///
   /// There must be a valid session when invoking.
   /// [message] is a list of NDEFRawRecord.
@@ -281,11 +301,15 @@ class FlutterNfcKit {
   ///
   /// On iOS, use [iosAlertMessage] to indicate success or [iosErrorMessage] to indicate failure.
   /// If both parameters are set, [iosErrorMessage] will be used.
+  /// On Web, set [closeWebUSB] to `true` to end the session, so that user can choose a different device in next [poll].
   static Future<void> finish(
-      {String? iosAlertMessage, String? iosErrorMessage}) async {
+      {String? iosAlertMessage,
+      String? iosErrorMessage,
+      bool? closeWebUSB}) async {
     return await _channel.invokeMethod('finish', {
       'iosErrorMessage': iosErrorMessage,
       'iosAlertMessage': iosAlertMessage,
+      'closeWebUSB': closeWebUSB ?? false,
     });
   }
 
@@ -293,8 +317,15 @@ class FlutterNfcKit {
   /// There must be a valid session when invoking.
   /// On Android, call to this function does nothing.
   static Future<void> setIosAlertMessage(String message) async {
-    if (Platform.isIOS) {
+    if (!kIsWeb && Platform.isIOS) {
       return await _channel.invokeMethod('setIosAlertMessage', message);
     }
+  }
+
+  /// Make the NDEF tag readonly (i.e. lock the NDEF tag, Android & iOS only).
+  ///
+  /// **WARNING: IT CANNOT BE UNDONE!**
+  static Future<void> makeNdefReadOnly() async {
+    return await _channel.invokeMethod('makeNdefReadOnly');
   }
 }

@@ -105,3 +105,21 @@
 ## 3.1.0
 
 * Fix inappropriate non-null type in fields of `NFCTag` (#43)
+
+## 3.2.0
+
+* Add `makeNdefReadOnly` (#53, thanks to @timnew)
+* Avoid NFC API calls to block the main thread on Android (#54, thanks to @cyberbobs)
+* Bump dependencies of Android plugin and example App (esp. Kotlin 1.6.0)
+* Exclude example app in published version to reduce package size
+
+## 3.3.0
+
+* Add Web support using own WebUSB protocol (see documentation for detail)
+* Bump dependencies (esp. Kotlin 1.6.21 and SDK 31) of Android plugin and example App to fix build error (#55)
+* Distinguish session canceled and session timeout (#58, #59, thanks to @timnew)
+* Minor error fixes (#61, #63, #64, #65, #71, #72, many of them come from @timnew)
+
+## 3.3.1
+
+* Downgrade dependency `js` to 0.6.3 to maintain backward compatibility with Flutter 2 (#74)
