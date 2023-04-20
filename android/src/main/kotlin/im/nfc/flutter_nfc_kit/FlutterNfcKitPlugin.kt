@@ -191,7 +191,8 @@ class FlutterNfcKitPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
                         val parsedMessages = mutableListOf<Map<String, String>>()
                         if (message != null) {
                             for (record in message.records) {
-                                parsedMessages.add(mapOf(
+                                parsedMessages.add(
+                                    mapOf(
                                         "identifier" to record.id.toHexString(),
                                         "payload" to record.payload.toHexString(),
                                         "type" to record.type.toHexString(),
@@ -204,7 +205,8 @@ class FlutterNfcKitPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
                                             NdefRecord.TNF_UNCHANGED -> "unchanged"
                                             else -> "unknown"
                                         }
-                                ))
+                                    )
+                                )
                             }
                         }
                         result.success(JSONArray(parsedMessages).toString())
@@ -234,18 +236,18 @@ class FlutterNfcKitPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
                         val records = Array<NdefRecord>(recordData.length(), init = { i: Int ->
                             val record: JSONObject = recordData.get(i) as JSONObject
                             NdefRecord(
-                                    when (record.getString("typeNameFormat")) {
-                                        "absoluteURI" -> NdefRecord.TNF_ABSOLUTE_URI
-                                        "empty" -> NdefRecord.TNF_EMPTY
-                                        "nfcExternal" -> NdefRecord.TNF_EXTERNAL_TYPE
-                                        "nfcWellKnown" -> NdefRecord.TNF_WELL_KNOWN
-                                        "media" -> NdefRecord.TNF_MIME_MEDIA
-                                        "unchanged" -> NdefRecord.TNF_UNCHANGED
-                                        else -> NdefRecord.TNF_UNKNOWN
-                                    },
-                                    record.getString("type").hexToBytes(),
-                                    record.getString("identifier").hexToBytes(),
-                                    record.getString("payload").hexToBytes()
+                                when (record.getString("typeNameFormat")) {
+                                    "absoluteURI" -> NdefRecord.TNF_ABSOLUTE_URI
+                                    "empty" -> NdefRecord.TNF_EMPTY
+                                    "nfcExternal" -> NdefRecord.TNF_EXTERNAL_TYPE
+                                    "nfcWellKnown" -> NdefRecord.TNF_WELL_KNOWN
+                                    "media" -> NdefRecord.TNF_MIME_MEDIA
+                                    "unchanged" -> NdefRecord.TNF_UNCHANGED
+                                    else -> NdefRecord.TNF_UNKNOWN
+                                },
+                                record.getString("type").hexToBytes(),
+                                record.getString("identifier").hexToBytes(),
+                                record.getString("payload").hexToBytes()
                             )
                         })
                         // write NDEF message
@@ -296,11 +298,14 @@ class FlutterNfcKitPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
     }
 
     override fun onDetachedFromActivity() {
-        pollingTimeoutTask?.cancel()
-        pollingTimeoutTask = null
-        tagTechnology = null
-        ndefTechnology = null
-        activity = null
+        try {
+            pollingTimeoutTask?.cancel()
+            pollingTimeoutTask = null
+            tagTechnology = null
+            ndefTechnology = null
+            activity = null
+        } catch (_: Error) {
+        }
     }
 
     override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) {}
@@ -357,14 +362,17 @@ class FlutterNfcKitPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
                         tagTechnology = isoDep
                         historicalBytes = isoDep.historicalBytes.toHexString()
                     }
+
                     tag.techList.contains(MifareClassic::class.java.name) -> {
                         standard = "ISO 14443-3 (Type A)"
                         type = "mifare_classic"
                     }
+
                     tag.techList.contains(MifareUltralight::class.java.name) -> {
                         standard = "ISO 14443-3 (Type A)"
                         type = "mifare_ultralight"
                     }
+
                     else -> {
                         standard = "ISO 14443-3 (Type A)"
                         type = "unknown"
@@ -414,25 +422,29 @@ class FlutterNfcKitPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
                 ndefCapacity = ndefTag.maxSize
             }
 
-            result.success(JSONObject(mapOf(
-                    "type" to type,
-                    "id" to id,
-                    "standard" to standard,
-                    "atqa" to atqa,
-                    "sak" to sak,
-                    "historicalBytes" to historicalBytes,
-                    "protocolInfo" to protocolInfo,
-                    "applicationData" to applicationData,
-                    "hiLayerResponse" to hiLayerResponse,
-                    "manufacturer" to manufacturer,
-                    "systemCode" to systemCode,
-                    "dsfId" to dsfId,
-                    "ndefAvailable" to ndefAvailable,
-                    "ndefType" to ndefType,
-                    "ndefWritable" to ndefWritable,
-                    "ndefCanMakeReadOnly" to ndefCanMakeReadOnly,
-                    "ndefCapacity" to ndefCapacity
-            )).toString())
+            result.success(
+                JSONObject(
+                    mapOf(
+                        "type" to type,
+                        "id" to id,
+                        "standard" to standard,
+                        "atqa" to atqa,
+                        "sak" to sak,
+                        "historicalBytes" to historicalBytes,
+                        "protocolInfo" to protocolInfo,
+                        "applicationData" to applicationData,
+                        "hiLayerResponse" to hiLayerResponse,
+                        "manufacturer" to manufacturer,
+                        "systemCode" to systemCode,
+                        "dsfId" to dsfId,
+                        "ndefAvailable" to ndefAvailable,
+                        "ndefType" to ndefType,
+                        "ndefWritable" to ndefWritable,
+                        "ndefCanMakeReadOnly" to ndefCanMakeReadOnly,
+                        "ndefCapacity" to ndefCapacity
+                    )
+                ).toString()
+            )
 
         }, technologies, null)
     }
