@@ -7,10 +7,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_nfc_kit/flutter_nfc_kit.dart';
 import 'package:logging/logging.dart';
 import 'package:ndef/ndef.dart' as ndef;
+import 'package:ndef/utilities.dart';
 
-import 'record-setting/raw_record_setting.dart';
-import 'record-setting/text_record_setting.dart';
-import 'record-setting/uri_record_setting.dart';
+import 'ndef_record/raw_record_setting.dart';
+import 'ndef_record/text_record_setting.dart';
+import 'ndef_record/uri_record_setting.dart';
 
 void main() {
   Logger.root.level = Level.ALL; // defaults to Level.INFO
@@ -29,7 +30,7 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
   String _platformVersion = '';
   NFCAvailability _availability = NFCAvailability.not_supported;
   NFCTag? _tag;
-  String? _result, _writeResult;
+  String? _result, _writeResult, _mifareResult;
   late TabController _tabController;
   List<ndef.NDEFRecord>? _records;
 
@@ -104,6 +105,7 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
                       });
                       await FlutterNfcKit.setIosAlertMessage(
                           "Working on it...");
+                      _mifareResult = null;
                       if (tag.standard == "ISO 14443-4 (Type B)") {
                         String result1 =
                             await FlutterNfcKit.transceive("00B0950000");
@@ -114,13 +116,11 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
                         });
                       } else if (tag.type == NFCTagType.iso18092) {
                         String result1 =
-                          await FlutterNfcKit.transceive("060080080100");
+                            await FlutterNfcKit.transceive("060080080100");
                         setState(() {
                           _result = '1: $result1\n';
                         });
-                      } else if (tag.type == NFCTagType.mifare_ultralight ||
-                          tag.type == NFCTagType.mifare_classic ||
-                          tag.type == NFCTagType.iso15693) {
+                      } else if (tag.ndefAvailable ?? false) {
                         var ndefRecords = await FlutterNfcKit.readNDEFRecords();
                         var ndefString = '';
                         for (int i = 0; i < ndefRecords.length; i++) {
@@ -151,7 +151,7 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: _tag != null
                         ? Text(
-                            'ID: ${_tag!.id}\nStandard: ${_tag!.standard}\nType: ${_tag!.type}\nATQA: ${_tag!.atqa}\nSAK: ${_tag!.sak}\nHistorical Bytes: ${_tag!.historicalBytes}\nProtocol Info: ${_tag!.protocolInfo}\nApplication Data: ${_tag!.applicationData}\nHigher Layer Response: ${_tag!.hiLayerResponse}\nManufacturer: ${_tag!.manufacturer}\nSystem Code: ${_tag!.systemCode}\nDSF ID: ${_tag!.dsfId}\nNDEF Available: ${_tag!.ndefAvailable}\nNDEF Type: ${_tag!.ndefType}\nNDEF Writable: ${_tag!.ndefWritable}\nNDEF Can Make Read Only: ${_tag!.ndefCanMakeReadOnly}\nNDEF Capacity: ${_tag!.ndefCapacity}\n\n Transceive Result:\n$_result')
+                            'ID: ${_tag!.id}\nStandard: ${_tag!.standard}\nType: ${_tag!.type}\nATQA: ${_tag!.atqa}\nSAK: ${_tag!.sak}\nHistorical Bytes: ${_tag!.historicalBytes}\nProtocol Info: ${_tag!.protocolInfo}\nApplication Data: ${_tag!.applicationData}\nHigher Layer Response: ${_tag!.hiLayerResponse}\nManufacturer: ${_tag!.manufacturer}\nSystem Code: ${_tag!.systemCode}\nDSF ID: ${_tag!.dsfId}\nNDEF Available: ${_tag!.ndefAvailable}\nNDEF Type: ${_tag!.ndefType}\nNDEF Writable: ${_tag!.ndefWritable}\nNDEF Can Make Read Only: ${_tag!.ndefCanMakeReadOnly}\nNDEF Capacity: ${_tag!.ndefCapacity}\nMifare Info:${_tag!.mifareInfo} Transceive Result:\n$_result\n\nBlock Message:\n$_mifareResult')
                         : const Text('No tag polled yet.')),
               ])))),
           Center(
@@ -214,7 +214,7 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
                                           final result = await Navigator.push(
                                               context, MaterialPageRoute(
                                                   builder: (context) {
-                                            return TextRecordSetting();
+                                            return NDEFTextRecordSetting();
                                           }));
                                           if (result != null) {
                                             if (result is ndef.TextRecord) {
@@ -232,7 +232,7 @@ class _MyAppState extends State<MyApp> with SingleTickerProviderStateMixin {
                                           final result = await Navigator.push(
                                               context, MaterialPageRoute(
                                                   builder: (context) {
-                                            return UriRecordSetting();
+                                            return NDEFUriRecordSetting();
                                           }));
                                           if (result != null) {
                                             if (result is ndef.UriRecord) {
